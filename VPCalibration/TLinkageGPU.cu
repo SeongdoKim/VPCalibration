@@ -47,7 +47,14 @@ float computeTonimotoDistance(float *vec1, float *vec2, int dim) {
 		n2 += vec2[i] * vec2[i];
 	}
 
-	return 1.f - s / (n1 + n2 - s);
+	float partial_sum = n1 + n2 - s;
+
+	if (partial_sum <= 0.f) {
+		return 1.f;
+	}
+	else {
+		return 1.f - s / partial_sum;
+	}
 }
 
 __global__
