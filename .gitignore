@@ -7,10 +7,10 @@
 *.sln.docstates
 
 # Build results
-[Dd]ebug/
-[Dd]ebugPublic/
-[Rr]elease/
-x64/
+vc14/[Dd]ebug/
+vc14/[Dd]ebugPublic/
+vc14/[Rr]elease/
+vc14/x64/
 build/
 bld/
 [Bb]in/
@@ -56,6 +56,7 @@ dlldata.c
 *.pidb
 *.svclog
 *.scc
+*.db
 
 # Chutzpah Test files
 _Chutzpah*
@@ -129,7 +130,7 @@ publish/
 #*.pubxml
 
 # NuGet Packages Directory
-packages/*
+vc14/packages/*
 ## TODO: If the tool you use requires repositories.config
 ## uncomment the next line
 #!packages/repositories.config
