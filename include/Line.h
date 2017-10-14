@@ -22,15 +22,33 @@ namespace VPDetection {
 		 */
 		cv::Mat &LineVector;
 
+	private:
+		/**
+		* Start point of the line
+		*/
+		cv::Point2f m_startPoint;
+
+		/**
+		* End point of the line
+		*/
+		cv::Point2f m_endPoint;
+
+		/**
+		* Vector representation of the line
+		*/
+		cv::Mat m_lineVector;
+
+	public:
+
 		/**
 		 * Copy constructor
 		 */
 		Line(const Line &l);
 
 		/**
-		* Basic constructor with its endpoints
-		*/
-		Line(const std::pair<cv::Point2f, cv::Point2f> &endPoints);
+		 * Basic constructor with its endpoints
+		 */
+		Line(const PointPair &endPoints);
 
 		/**
 		 * Basic constructor with its endpoints
@@ -58,8 +76,8 @@ namespace VPDetection {
 		void swapPoints();
 
 		/**
-		 * Compute distance between this line and given point. If computeSign is set to true,
-		 * distance will be computed with sign.
+		 * Compute perpendicular distance between this line and given point.
+		 * If computeSign is set to true, distance will be computed with sign.
 		 */
 		float computeDistance(const cv::Point2f &point, bool computeSign = false) const;
 
@@ -99,6 +117,18 @@ namespace VPDetection {
 		bool operator== (const Line &l) const;
 
 		/**
+		 * Direct access to an element of line vector
+		 */
+		float &operator[](const int index);
+
+		/**
+		 * Direct access to an element of line vector read-only
+		 */
+		const float &operator[](const int index) const;
+
+	public:
+
+		/**
 		 * Compute normal of a line connecting pt1 and pt2.
 		 */
 		static cv::Mat computeLineNormal(const cv::Point2f &pt1, const cv::Point2f &pt2);
@@ -110,22 +140,6 @@ namespace VPDetection {
 		 * defined as the distance.
 		 */
 		static float LineDistance(const cv::Point2f &model, const Line &line);
-
-	private:
-		/**
-		 * Start point of the line
-		 */
-		cv::Point2f m_startPoint;
-
-		/**
-		 * End point of the line
-		 */
-		cv::Point2f m_endPoint;
-
-		/**
-		 * Vector representation of the line
-		 */
-		cv::Mat m_lineVector;
 	};
 
 	/**

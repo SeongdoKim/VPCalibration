@@ -82,6 +82,44 @@ namespace VPDetection  {
 		return numOfInliers;
 	}
 
+	void LineClusters::collectInliers(float threshold, bool recomputeVP) {
+		vector<Point2f> VPs;
+		vector<int> bestIndices(m_outlierLines.size(), -1);
+
+		// Get vanishing points;
+		for (auto& cluster : m_clusters) {
+			if (recomputeVP) {
+				cluster.resetVanishingPoint(threshold);
+			}
+
+			VPs.push_back(cluster.getVanishingPoint());
+		}
+
+		for (uint i = 0; i < m_outlierLines.size(); i++) {
+			float minError = threshold;
+			float error;
+
+			for (uint vi = 0; vi < VPs.size(); vi++) {
+				if ((error = Line::LineDistance(VPs[vi], m_outlierLines[i])) < minError) {
+					minError = error;
+					bestIndices[i] = vi;
+				}
+			}
+		}
+
+		auto iter = m_outlierLines.begin();
+		for (uint i = 0; i < bestIndices.size(); i++) {
+			if (bestIndices[i] >= 0) {
+				m_clusters[bestIndices[i]].add(*iter);
+				m_lineIndexer[*iter] = bestIndices[i];
+				iter = m_outlierLines.erase(iter);
+			}
+			else {
+				iter++;
+			}
+		}
+	}
+
 	LineClusters LineClusters::subCluster(const vector<int> &selectedIndices, const float threshold) const {
 		LineClusters lineClusters;
 
@@ -152,6 +190,22 @@ namespace VPDetection  {
 		m_outlierLines = lineClusters.m_outlierLines;
 
 		return *this;
+	}
+
+	LineClusters::iterator LineClusters::begin() {
+		return m_clusters.begin();
+	}
+
+	LineClusters::const_iterator LineClusters::begin() const {
+		return m_clusters.cbegin();
+	}
+
+	LineClusters::iterator LineClusters::end() {
+		return m_clusters.end();
+	}
+
+	LineClusters::const_iterator LineClusters::end() const {
+		return m_clusters.cend();
 	}
 
 	void LineClusters::constructLineIndexer() {

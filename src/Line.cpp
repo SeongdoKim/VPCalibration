@@ -10,7 +10,7 @@ namespace VPDetection {
 		m_lineVector = l.LineVector.clone();
 	}
 
-	Line::Line(const pair<Point2f, Point2f> &endPoints)
+	Line::Line(const PointPair &endPoints)
 		: StartPoint(m_startPoint), EndPoint(m_endPoint), LineVector(m_lineVector) {
 		setPoints(endPoints.first, endPoints.second);
 	}
@@ -28,16 +28,16 @@ namespace VPDetection {
 		return Point2f((m_startPoint.x + m_endPoint.x) / 2.f, (m_startPoint.y + m_endPoint.y) / 2.f);
 	}
 
-	void Line::swapPoints() {
-		Point2f tempPoint = m_startPoint;
-		m_startPoint = m_endPoint;
-		m_endPoint = tempPoint;
-	}
-
 	void Line::setPoints(const Point2f &startPoint, const Point2f &endPoint) {
 		m_startPoint = startPoint;
 		m_endPoint = endPoint;
 		m_lineVector = computeLineNormal(m_startPoint, m_endPoint);
+	}
+
+	void Line::swapPoints() {
+		Point2f tempPoint = m_startPoint;
+		m_startPoint = m_endPoint;
+		m_endPoint = tempPoint;
 	}
 
 	float Line::computeDistance(const cv::Point2f &point, bool computeSign) const {
@@ -103,6 +103,14 @@ namespace VPDetection {
 
 	bool Line::operator== (const Line &l) const {
 		return l.StartPoint == StartPoint && l.EndPoint == EndPoint;
+	}
+
+	float &Line::operator[](const int index) {
+		return m_lineVector.at<float>(index);
+	}
+
+	const float &Line::operator[](const int index) const {
+		return m_lineVector.at<float>(index);
 	}
 
 	Mat Line::computeLineNormal(const Point2f &pt1, const Point2f &pt2) {

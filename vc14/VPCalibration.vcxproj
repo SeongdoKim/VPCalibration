@@ -23,6 +23,7 @@
     <ClCompile Include="..\src\LineCluster.cpp" />
     <ClCompile Include="..\src\LineClusters.cpp" />
     <ClCompile Include="..\src\main.cpp" />
+    <ClCompile Include="..\src\VDResidual.cpp" />
     <ClCompile Include="..\src\VPCalibration.cpp" />
     <ClCompile Include="..\src\VPDetection.cpp" />
   </ItemGroup>
@@ -37,6 +38,7 @@
     <ClInclude Include="..\include\LineClusters.h" />
     <ClInclude Include="..\include\main.h" />
     <ClInclude Include="..\include\TLinkageGPU.h" />
+    <ClInclude Include="..\include\VDResidual.h" />
     <ClInclude Include="..\include\VPCalibration.h" />
     <ClInclude Include="..\include\VPDetection.h" />
   </ItemGroup>
@@ -98,16 +100,16 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>$(SolutionDir)..\include;$(OPENCV_INCLUDE);$(OPENCV_INCLUDE)\opencv;$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
-    <LibraryPath>$(CXSPARSE_LIB)\Debug;$(CERES_LIB)\Debug;$(OPENCV_DIR)\vc14\lib;$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);$(NETFXKitsDir)Lib\um\x64</LibraryPath>
+    <IncludePath>C:\Library\ceres\gflags\vc2015\include;C:\Library\ceres\glog\vc14;$(SolutionDir)..\include;$(CERES_INC);$(OPENCV_INCLUDE);$(OPENCV_INCLUDE)\opencv;$(VC_IncludePath);$(WindowsSDK_IncludePath)</IncludePath>
+    <LibraryPath>C:\Library\ceres\gflags\vc2015\lib\Debug;C:\Library\ceres\glog\vc14\Debug;$(CXSPARSE_LIB)\vc14;$(CERES_LIB)\vc14\lib;$(OPENCV_DIR)\vc14\lib;$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);$(NETFXKitsDir)Lib\um\x64</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <IncludePath>$(SolutionDir)..\include;$(OPENCV_INCLUDE);$(OPENCV_INCLUDE)\opencv;$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
     <LibraryPath>$(CXSPARSE_LIB)\Release;$(CERES_LIB)\Release;$(OPENCV_DIR)\lib;$(OutDir);$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86);$(NETFXKitsDir)Lib\um\x86</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>$(SolutionDir)..\include;$(OPENCV_INCLUDE);$(OPENCV_INCLUDE)\opencv;$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
-    <LibraryPath>$(CXSPARSE_LIB)\Release;$(CERES_LIB)\Release;$(OPENCV_DIR)\vc14\lib;$(LibraryPath)</LibraryPath>
+    <IncludePath>$(SolutionDir)..\include;$(CERES_INC);$(OPENCV_INCLUDE);$(OPENCV_INCLUDE)\opencv;$(VC_IncludePath);$(WindowsSDK_IncludePath)</IncludePath>
+    <LibraryPath>$(CXSPARSE_LIB)\vc14;$(CERES_LIB)\vc14\lib;$(OPENCV_DIR)\vc14\lib;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -135,7 +137,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
-      <AdditionalDependencies>opencv_core330d.lib;opencv_highgui330d.lib;opencv_imgcodecs330d.lib;opencv_imgproc330d.lib;opencv_line_descriptor330d.lib;cudart.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>gflags.lib;glog.lib;opencv_core330d.lib;opencv_highgui330d.lib;opencv_imgcodecs330d.lib;opencv_imgproc330d.lib;opencv_calib3d330d.lib;opencv_line_descriptor330d.lib;cxsparsed.lib;ceres-debug.lib;cudart.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>echo copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"
@@ -179,7 +181,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <SubSystem>Console</SubSystem>
-      <AdditionalDependencies>opencv_core330.lib;opencv_highgui330.lib;opencv_imgcodecs330.lib;opencv_imgproc330.lib;opencv_line_descriptor330.lib;cudart.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>opencv_core330.lib;opencv_highgui330.lib;opencv_imgcodecs330.lib;opencv_imgproc330.lib;opencv_line_descriptor330.lib;cxsparse.lib;ceres.lib;cudart.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>echo copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"
@@ -235,6 +237,7 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <Import Project="packages\boost_wserialization-vc140.1.65.1.0\build\native\boost_wserialization-vc140.targets" Condition="Exists('packages\boost_wserialization-vc140.1.65.1.0\build\native\boost_wserialization-vc140.targets')" />
     <Import Project="packages\boost_zlib-vc140.1.65.1.0\build\native\boost_zlib-vc140.targets" Condition="Exists('packages\boost_zlib-vc140.1.65.1.0\build\native\boost_zlib-vc140.targets')" />
     <Import Project="packages\boost-vc140.1.65.1.0\build\native\boost-vc140.targets" Condition="Exists('packages\boost-vc140.1.65.1.0\build\native\boost-vc140.targets')" />
+    <Import Project="packages\Eigen.3.3.3\build\native\Eigen.targets" Condition="Exists('packages\Eigen.3.3.3\build\native\Eigen.targets')" />
   </ImportGroup>
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>
@@ -283,5 +286,6 @@ copy "$(CudaToolkitBinDir)\cudart*.dll" "$(OutDir)"</Command>
     <Error Condition="!Exists('packages\boost_wserialization-vc140.1.65.1.0\build\native\boost_wserialization-vc140.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\boost_wserialization-vc140.1.65.1.0\build\native\boost_wserialization-vc140.targets'))" />
     <Error Condition="!Exists('packages\boost_zlib-vc140.1.65.1.0\build\native\boost_zlib-vc140.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\boost_zlib-vc140.1.65.1.0\build\native\boost_zlib-vc140.targets'))" />
     <Error Condition="!Exists('packages\boost-vc140.1.65.1.0\build\native\boost-vc140.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\boost-vc140.1.65.1.0\build\native\boost-vc140.targets'))" />
+    <Error Condition="!Exists('packages\Eigen.3.3.3\build\native\Eigen.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\Eigen.3.3.3\build\native\Eigen.targets'))" />
   </Target>
 </Project>

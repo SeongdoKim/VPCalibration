@@ -6,6 +6,10 @@
 #include <unordered_set>
 #include <unordered_map>
 
+#include <ceres\ceres.h>
+
+#include "VDResidual.h"
+
 namespace VPDetection {
 	using namespace std;
 	using namespace cv;
@@ -241,7 +245,7 @@ namespace VPDetection {
 	}
 
 	LineClusters lineClustering(Mat image, int numModels, int minCardinarity, float distThreshold,
-		float lengthThreshold, bool allowDuplicates) {
+		float lengthThreshold, bool allowDuplicates, bool draw_output) {
 		vector<PointPair> lines;
 		vector<PointPair> longLines;
 		vector<Point3f> models;
@@ -303,12 +307,273 @@ namespace VPDetection {
 		t = ((double)getTickCount() - t) / getTickFrequency();
 		cout << "*** Line clustering took " << t << " seconds. " << endl;
 
+		if (draw_output) {
+			cv::imwrite("line_clusters_org.png", drawLineClusters(image, lineClusters, 2, true));
+		}
+
 		// Remove temporary data
 		delete[] arrLines;
 		delete[] arrModels;
 		delete[] prefMatArray;
 
 		return lineClusters;
+	}
+
+	//----------------------------------
+	// Cluster optimization
+	//----------------------------------
+
+	Mat detectVP(const LineClusters &lineClusters, vector<int> &selectedIndices, Mat &K, bool refineK,
+		float threshold, bool extendInliers, const Mat &debug_image) {
+		Mat VD;
+
+		selectedIndices = findOrthogonalClusters(lineClusters, K, threshold, VD);
+		LineClusters selectedClusters = lineClusters.subCluster(selectedIndices);
+
+		//cv::imwrite("Results\\lineClustersSelected.png", drawLineClusters(image, selectedClusters, 2, true));
+
+		for (LineCluster &lineCluster : selectedClusters) {
+			lineCluster.resetVanishingPoint(threshold);
+		}
+
+		if (extendInliers) {
+			selectedClusters.collectInliers(threshold);
+		}
+
+		//cv::imwrite("Results\\lineClustersRecomputed.png", drawLineClusters(image, selectedClusters, 2, true));
+
+		// Orthogonalize the vanishing directions
+		cout << "VD: \n" << VD << endl;
+		HouseHolderQR(VD.clone(), VD, Mat());
+
+		cout << "=== Initial matrices ===" << endl;
+		cout << "K: \n" << K << endl;
+		cout << "VD: \n" << VD << endl;
+		cout << "========================" << endl;
+
+		// TODO: check if refine calibration has a problem
+		VD = refineCalibration(selectedClusters, VD, K, threshold, refineK);
+
+		cout << "====== Optimized =======" << endl;
+		cout << "K: \n" << K << endl;
+		cout << "VD: \n" << VD << endl;
+		cout << "========================" << endl;
+
+		return VD;
+	}
+
+	vector<int> findOrthogonalClusters(const LineClusters &lineClusters, const Mat &K, float threshold, Mat &VD) {
+		float perpCosThr = cos(75.0 * CV_PI / 180.0);
+		float paraCosThr = cos(30.0 * CV_PI / 180.0);
+		RNG rng(time(NULL));
+		const int numOfClusters = (int)lineClusters.size();
+		vector<Vec3f> VanishingDirections;
+		vector<float> gravityConsistency;
+		vector<int> gravityConsistencyIdx;
+		Vec3f yDir(0.f, 1.f, 0.f);
+		int maxNumOfInliers = 0;
+		Mat Kinv = K.inv();
+		vector<int> selectedIndices(3, -1);
+
+		VD = Mat::zeros(3, 3, CV_32F);
+
+		// Compute initial vanishing directions
+		for (int ci = 0; ci < numOfClusters; ci++) {
+			Point2f VP = lineClusters[ci].getVanishingPoint();
+			Vec3f VD;
+
+			VD[0] = Kinv.at<float>(0, 0) * VP.x + Kinv.at<float>(0, 1) * VP.y + Kinv.at<float>(0, 2) * 1.f;
+			VD[1] = Kinv.at<float>(1, 0) * VP.x + Kinv.at<float>(1, 1) * VP.y + Kinv.at<float>(1, 2) * 1.f;
+			VD[2] = Kinv.at<float>(2, 0) * VP.x + Kinv.at<float>(2, 1) * VP.y + Kinv.at<float>(2, 2) * 1.f;
+
+			VD = normalize(VD);
+
+			VanishingDirections.push_back(VD);
+			gravityConsistency.push_back(abs(VD.dot(yDir)));
+		}
+
+		sortIdx(gravityConsistency, gravityConsistencyIdx, SORT_DESCENDING);
+
+		for (int vdi = 0; vdi < numOfClusters; vdi++) {
+			int y_idx = gravityConsistencyIdx[vdi];
+			int numOfLines1 = lineClusters[y_idx].size();
+
+			if (gravityConsistency[y_idx] > paraCosThr) {
+				Vec3f &VD_y = VanishingDirections[y_idx];
+
+				for (int vdj = 0; vdj < numOfClusters; vdj++) {
+					int numOfLines2 = lineClusters[vdj].size();
+
+					// Two selected vanishing directions must be as perpendicular as possible.
+					if (vdj != y_idx && abs(VD_y.dot(VanishingDirections[vdj])) < perpCosThr) {
+						for (int vdk = 0; vdk < numOfClusters; vdk++) {
+							if (vdk != y_idx && vdk != vdj) {
+								// Three selected vanishing directions must be as perpendicular as possible.
+								if (abs(VD_y.dot(VanishingDirections[vdk])) < perpCosThr &&
+									abs(VanishingDirections[vdj].dot(VanishingDirections[vdk])) < perpCosThr) {
+
+									// Compute the number of inliers that are aligned with current setting
+									int numOfInliers = numOfLines1 + numOfLines2 + lineClusters[vdk].size();
+
+									if (numOfInliers > maxNumOfInliers) {
+										maxNumOfInliers = numOfInliers;
+										selectedIndices[0] = y_idx;
+										selectedIndices[1] = vdj;
+										selectedIndices[2] = vdk;
+										Mat(VD_y).copyTo(VD.col(0));
+										Mat(VanishingDirections[vdj]).copyTo(VD.col(1));
+										Mat(VanishingDirections[vdk]).copyTo(VD.col(2));
+									}
+								}
+								else {
+									// Compute vanishing direction, which is perpendicular to the selected VDs.
+									Vec3f vanishingDirection = VD_y.cross(VanishingDirections[vdj]);
+									float normalizer = K.at<float>(2, 0) * vanishingDirection[0] +
+										K.at<float>(2, 1) * vanishingDirection[1] +
+										K.at<float>(2, 2) * vanishingDirection[2];
+									Point2f vanishingPoint((K.at<float>(0, 0) * vanishingDirection[0] +
+										K.at<float>(0, 1) * vanishingDirection[1] +
+										K.at<float>(0, 2) * vanishingDirection[2]) / normalizer,
+										(K.at<float>(1, 0) * vanishingDirection[0] +
+											K.at<float>(1, 1) * vanishingDirection[1] +
+											K.at<float>(1, 2) * vanishingDirection[2]) / normalizer);
+
+									// Compute cardinality of computed vanishing point
+									int numOfInliers = numOfLines1 + numOfLines2 +
+										lineClusters.computeCardinality(vanishingPoint, threshold);
+
+									if (numOfInliers > maxNumOfInliers) {
+										maxNumOfInliers = numOfInliers;
+										selectedIndices[0] = y_idx;
+										selectedIndices[1] = vdj;
+										selectedIndices[2] = -1;	// virtual cluster, might need to be computed
+										Mat(VD_y).copyTo(VD.col(0));
+										Mat(VanishingDirections[vdj]).copyTo(VD.col(1));
+										Mat(vanishingDirection).copyTo(VD.col(2));
+									}
+								}
+							}	// end_if (vdk != y_idx && vdk != vdj)
+						}	// end_for (int vdk = 0; vdk < numOfClusters; vdk++)
+					}	// end_if (vdj != y_idx && VD_y.dot(VanishingDirections[vdj]) < diffThr)
+				}	// end_for (int vdj = 0; vdj < numOfClusters; vdj++)
+			}	// end_if (gravityConsistency[y_idx] > equalThr)
+			else {
+				break;
+			}
+		}
+
+		if (maxNumOfInliers == 0) {
+			cout << "Failed to find orthogonal clusters. Find orthogonal clusters based on their cardinality" << endl;
+
+			vector<int> numInliers;
+			vector<int> sortedIndices;
+
+			for (int i = 0; i < numOfClusters; i++) {
+				numInliers.push_back((int)lineClusters.size());
+			}
+
+			sortIdx(numInliers, sortedIndices, SORT_DESCENDING);
+			selectedIndices[0] = sortedIndices[0];
+			selectedIndices[1] = sortedIndices[1];
+			Vec3f VDTest = VanishingDirections[selectedIndices[0]].cross(VanishingDirections[selectedIndices[1]]);
+
+			// Find the last cluster
+			int bestIndex = -1;
+			float maxCosine = 0., cosineValue;
+			for (int i = 0; i < numOfClusters; i++) {
+				if (i == selectedIndices[0] || i == selectedIndices[1]) {
+					continue;
+				}
+
+				cosineValue = abs(VDTest.dot(VanishingDirections[i]));
+				if (cosineValue > maxCosine) {
+					maxCosine = cosineValue;
+					bestIndex = i;
+				}
+			}
+
+			selectedIndices[2] = bestIndex;
+
+			Mat(VanishingDirections[selectedIndices[0]]).copyTo(VD.col(0));
+			Mat(VanishingDirections[selectedIndices[1]]).copyTo(VD.col(1));
+			Mat(VanishingDirections[selectedIndices[2]]).copyTo(VD.col(2));
+		}
+		else if (selectedIndices[2] == -1) {
+			cout << "Selected from computed third VD" << endl;
+			size_t maxInliers = 0;
+			int bestIndex = -1;
+			for (int i = 0; i < lineClusters.size(); i++) {
+				if (i == selectedIndices[0] || i == selectedIndices[1]) {
+					continue;
+				}
+
+				if (lineClusters.size() > maxInliers) {
+					maxInliers = lineClusters.size();
+					bestIndex = i;
+				}
+			}
+			selectedIndices[2] = bestIndex;
+		}
+
+		return selectedIndices;
+	}
+
+	Mat refineCalibration(const LineClusters &lineClusters, const Mat &VD, Mat &K, float threshold, bool refineK) {
+		Mat rotation;
+		Mat rotationComps;
+		ceres::Problem problem;
+
+		Rodrigues(VD, rotationComps);
+
+		double x[3] = { rotationComps.at<float>(0), rotationComps.at<float>(1), rotationComps.at<float>(2) };
+		K.convertTo(K, CV_64F);
+		double *focalLength = K.ptr<double>(0, 0);
+
+		for (int ci = 0; ci < 3; ci++) {
+			for (const Line& l : lineClusters[ci]) {
+				const Mat &lineVector = l.LineVector;
+
+				problem.AddResidualBlock(
+					VDResidual::Create(lineVector.at<float>(0), lineVector.at<float>(1), lineVector.at<float>(2),
+						K.at<double>(0, 2), K.at<double>(1, 2), ci),
+					new ceres::CauchyLoss(0.5), x, focalLength);
+			}
+		}
+
+		ceres::Solver::Options options;
+		ceres::Solver::Summary summary;
+
+		// Preventing from the focal length would have weild value
+		problem.SetParameterLowerBound(focalLength, 0, *focalLength * 0.8);
+		problem.SetParameterUpperBound(focalLength, 0, *focalLength * 1.2);
+
+		options.linear_solver_type = ceres::DENSE_SCHUR; // Either DENSE_SCHUR or DENSE_QR
+		options.minimizer_progress_to_stdout = false;
+		options.use_explicit_schur_complement = true;
+		ceres::Solve(options, &problem, &summary);
+
+		//cout << summary.FullReport() << endl;
+
+		rotationComps.at<float>(0) = x[0];
+		rotationComps.at<float>(1) = x[1];
+		rotationComps.at<float>(2) = x[2];
+
+		Rodrigues(rotationComps, rotation);
+		if (refineK) {
+			K.at<float>(0, 0) = *focalLength;
+			K.at<float>(1, 1) = *focalLength;
+		}
+		K.convertTo(K, CV_32F);
+		K.at<float>(1, 1) = K.at<float>(0, 0);
+
+		if (K.at<float>(0, 0) < 0.f) {
+			VD.row(0) *= -1.f;
+			VD.row(1) *= -1.f;
+			K.at<float>(0, 0) *= -1.f;
+			K.at<float>(1, 1) *= -1.f;
+		}
+
+		return rotation;
 	}
 
 	inline double LineDistance(const Point2f &point, const float *line) {
@@ -347,4 +612,87 @@ namespace VPDetection {
 		return intersection;
 	}
 
+	void HouseHolderQR(const cv::Mat &A, cv::Mat &Q, cv::Mat &R)
+	{
+		assert(A.channels() == 1);
+		assert(A.rows >= A.cols);
+		auto sign = [](float value) { return value >= 0 ? 1 : -1; };
+		const auto totalRows = A.rows;
+		const auto totalCols = A.cols;
+		R = A.clone();
+		Q = cv::Mat::eye(totalRows, totalRows, A.type());
+		for (int col = 0; col < A.cols; ++col)
+		{
+			cv::Mat matAROI = cv::Mat(R, cv::Range(col, totalRows), cv::Range(col, totalCols));
+			cv::Mat y = matAROI.col(0);
+			auto yNorm = norm(y);
+			cv::Mat e1 = cv::Mat::eye(y.rows, 1, A.type());
+			cv::Mat w = y + sign(y.at<float>(0, 0)) *  yNorm * e1;
+			cv::Mat v = w / norm(w);
+			cv::Mat vT; cv::transpose(v, vT);
+			cv::Mat I = cv::Mat::eye(matAROI.rows, matAROI.rows, A.type());
+			cv::Mat I_2VVT = I - 2 * v * vT;
+			cv::Mat matH = cv::Mat::eye(totalRows, totalRows, A.type());
+			cv::Mat matHROI = cv::Mat(matH, cv::Range(col, totalRows), cv::Range(col, totalRows));
+			I_2VVT.copyTo(matHROI);
+			R = matH * R;
+			Q = Q * matH;
+		}
+	}
+
+	Mat drawLineClusters(const Mat &image, const LineClusters &lineClusters, int lineWidth, bool convertGray) {
+		Mat output;
+		RNG rng(0xFFFFFFFF);
+
+		if (convertGray) {
+			if (image.channels() == 3) {
+				cvtColor(image, output, CV_BGR2GRAY);
+				cvtColor(output, output, CV_GRAY2BGR);
+			}
+			else if (image.channels() == 1) {
+				cvtColor(image, output, CV_GRAY2BGR);
+			}
+		}
+		else {
+			output = image.clone();
+		}
+
+		for (const auto &cluster : lineClusters) {
+			int icolor = (unsigned)rng;
+			Scalar color(icolor & 255, (icolor >> 8) & 255, (icolor >> 16) & 255);
+
+			for (const auto &l : cluster.Lines) {
+				circle(output, l.StartPoint, 2, CV_RGB(255, 255, 255));
+				circle(output, l.EndPoint, 2, CV_RGB(255, 255, 255));
+				line(output, l.StartPoint, l.EndPoint, color, lineWidth);
+			}
+		}
+
+		return output;
+	}
+
+	Mat drawVanishingDirections(const Mat &image, const Mat &VDs, const Mat &K) {
+		Mat result = image.clone();
+		float length = (float)sqrt(image.cols * image.cols + image.rows * image.rows) / 50.f;
+		float focal = K.at<float>(0, 0);
+		Point s(K.at<float>(0, 2), K.at<float>(1, 2));
+		RNG rng(0xFFFFFFFF);
+
+		for (int i = 0; i < VDs.cols; i++) {
+			VDs.col(i) * length;
+
+			Mat S = (Mat_<float>(3, 1) << 0, 0, focal * length);
+			Mat E = (Mat_<float>(3, 1) <<
+				S.at<float>(0) + focal * VDs.at<float>(0, i),
+				S.at<float>(1) + focal * VDs.at<float>(1, i),
+				S.at<float>(2) + focal * VDs.at<float>(2, i));
+			Mat e = K * E;
+
+			int icolor = (unsigned)rng;
+			Scalar color(icolor & 255, (icolor >> 8) & 255, (icolor >> 16) & 255);
+			line(result, s, Point(e.at<float>(0) / e.at<float>(2), e.at<float>(1) / e.at<float>(2)), color, 3);
+		}
+
+		return result;
+	}
 };

@@ -8,10 +8,37 @@ namespace VPDetection  {
 	class LineClusters {
 	public:
 		/**
+		 * Type definition of iterator
+		 */
+		typedef std::vector<LineCluster>::iterator iterator;
+
+		/**
+		 * Type definition of constant iterator
+		 */
+		typedef std::vector<LineCluster>::const_iterator const_iterator;
+
+		/**
 		 * Read-only cluster reference
 		 */
 		const std::vector<LineCluster> &Clusters;
-		
+
+	private:
+		/**
+		 * Vector of lines that are not include to the cluster
+		 */
+		std::vector<Line> m_outlierLines;
+
+		/**
+		 * Vector of line clusters
+		 */
+		std::vector<LineCluster> m_clusters;
+
+		/**
+		 * Indexer of a line. Note that each line can be added to more than one cluster.
+		 */
+		std::unordered_map<Line, int, LineHash> m_lineIndexer;
+
+	public:
 		/**
 		 * Basic empty constructor
 		 */
@@ -63,6 +90,11 @@ namespace VPDetection  {
 		int computeCardinality(cv::Point2f vanishingPoint, float threshold, bool fromOutliers = true) const;
 
 		/**
+		 * Collect inliers from outlier lines
+		 */
+		void collectInliers(float threshold, bool recomputeVP = false);
+
+		/**
 		 * Get sub-clusters of this clusters. If threshold is set to greater than zero, 
 		 * it will recompute inliers of each cluster in the sub-clusters.
 		 */
@@ -84,30 +116,36 @@ namespace VPDetection  {
 		LineClusters& operator=(const LineClusters &lineClusters);
 
 		/**
-		 * Defines the index of outliers cluster
+		 * The beginning iterator of the line clusters
 		 */
-		const static int OUTLIER_CLUSTER_INDEX = -1;
+		iterator begin();
+
+		/**
+		 * The beginning constant iterator of the line clusters
+		 */
+		const_iterator begin() const;
+
+		/**
+		 * The last iterator of the line clusters
+		 */
+		iterator end();
+
+		/**
+		 * The last constant iterator of the line clusters
+		 */
+		const_iterator end() const;
 
 	private:
-		/**
-		 * Vector of lines that are not include to the cluster
-		 */
-		std::vector<Line> m_outlierLines;
-
-		/**
-		 * Vector of line clusters
-		 */
-		std::vector<LineCluster> m_clusters;
-
-		/**
-		 * Indexer of a line. Note that each line can be added to more than one cluster.
-		 */
-		std::unordered_map<Line, int, LineHash> m_lineIndexer;
-
 		/**
 		 * Construct the line indexer.
 		 */
 		void constructLineIndexer();
+
+	public:
+		/**
+		 * Defines the index of outliers cluster
+		 */
+		const static int OUTLIER_CLUSTER_INDEX = -1;
 	};
 
 	bool sortClusterByLines(const LineCluster &left, const LineCluster &right);
