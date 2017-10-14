@@ -7,6 +7,7 @@ This algorithm depends on the following libraries.
 - OpenCV 3.X Packages include
   - core, highgui, imgcodecs, imgproc, calib3d, and line_descriptor of extra module.
 - Ceres-Solver
+
 Since the algorithm depends on CUDA, you must have nVidia GPU that supports the CUDA programming. Also, you must setup the libraries and link them properly to run this program on Windows system with Visual Studio.
 
 ## Compilation
